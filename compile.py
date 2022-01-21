@@ -262,7 +262,7 @@ if __name__ == "__main__":
         with open(index_file, "w") as indexfile:
             indexfile.write("# Index\n")
             for element in index_list:
-                if element not in indexignore:
+                if element.filebase not in indexignore:
                     indexfile.write(f"=> {element.filebase}.html {element.title}\n")
     except:
         print("[WARN] Unable to generate index file")
