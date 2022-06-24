@@ -67,6 +67,7 @@ def encodehtml(string):
   				.replace("'", "&#39;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
+                .replace("—", "&mdash;")
             )
 
 
