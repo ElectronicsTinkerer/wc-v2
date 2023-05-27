@@ -1,14 +1,16 @@
 
 import os
+import urllib.parse
 
 
 class SP:  # [S]yntax[P]roperties
-    def __init__(self, filenum, delimiter, del_per_line, mode, need_newline):
+    def __init__(self, filenum, delimiter, del_per_line, mode, need_newline, template_arg_modifier):
         self.filenum = filenum
         self.delimiter = delimiter
         self.dpl = del_per_line
         self.mode = mode
         self.neednl = need_newline
+        self.template_arg_modifier = template_arg_modifier
 
 class MODE:
     def __init__(self, begin, end, strip_whitespace, retain):
@@ -40,49 +42,100 @@ INDIR  = "rawpages"
 OUTDIR = "genpages"
 INDEXZWC = "index.zwc"
 INDEXIGNORE = ".indexignore"
+
+def sp_image_linker(link):
+    delim_index = link.rfind("/")
+    return f"{link[:delim_index+1]}s_{link[delim_index+1:]}"
+
 SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs newline after template
-    "```"  : SP(50, "",  0, "code", False),   # CODE BLOCK TOGGLE
-    "# "   : SP(51, "",  0, "none", True),    # HEADING 1
-    "## "  : SP(52, "",  0, "none", True),    # HEADING 2
-    "### " : SP(53, "",  0, "none", True),    # HEADING 3
-    "=>"   : SP(54, " ", 1, "none", True),    # HYPERLINK
-    "* "   : SP(55, "",  0, "list", False),   # LIST ELEMENT
-    "> "   : SP(56, "",  0, "none", False),   # BLOCKQUOTE
-    "! "   : SP(57, " ", 1, "none", True)     # IMAGE
+    "```"  : SP(50, "",  0, "code", False, None),   # CODE BLOCK TOGGLE
+    "# "   : SP(51, "",  0, "none", True,  None),   # HEADING 1
+    "## "  : SP(52, "",  0, "none", True,  None),   # HEADING 2
+    "### " : SP(53, "",  0, "none", True,  None),   # HEADING 3
+    "=>"   : SP(54, " ", 1, "none", True,  None),   # HYPERLINK
+    "* "   : SP(55, "",  0, "list", False, None),   # LIST ELEMENT
+    "> "   : SP(56, "",  0, "none", False, None),   # BLOCKQUOTE
+    "! "   : SP(57, " ", 1, "none", True,  None),   # IMAGE
+    "!! "  : SP(58, " ", 1, "none", True,  sp_image_linker)     # IMAGE (with scalled link - full size is linked)
 }
 MODES = { #       BEGIN      END         STRIP  RETAIN
     "none" : MODE("",        "",         True,  False),
     "code" : MODE("<pre>\n", "</pre>\n", False, True),
     "list" : MODE("<ul>",    "</ul>",    True,  False)
 }
-TEMPLATEARGCHAR = "%"
 
 
 # https://security.stackexchange.com/questions/66252/encodeuricomponent-in-a-unquoted-html-attribute
 # Enocdes string to use HTML instead of raw characters
 # Param: string: the string to be HTML encoded (using the HTML entities)
 def encodehtml(string):
-	return (string.replace("&", "&amp;")
-  				.replace("\"", "&quot;")
-  				.replace("'", "&#39;")
+        return (string.replace("&", "&amp;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("—", "&mdash;")
             )
 
 
+# Encodes a string to use URL encoding instead of raw characters
+def encodeurl(string):
+    return urllib.parse.quote(string, safe="/:", encoding="utf-8")
+
+
 # Reads a template string and fills in the template_args where TEMPLATEARGCHARs are found
-def readtemplate(template, template_args):
+def readtemplate(template, template_args, template_arg_modifier=None):
     tem_string = ""
     arg = 0
 
     for line in template.contents.split('\n'):
         line.strip()
-        if line.startswith(TEMPLATEARGCHAR):
+
+        # URL based on previous template arg
+        if line.startswith("%%="):
+            if arg == 0:
+                print(f"[WARN] Template {template.filenum} has modified URLas first parameter")
+                continue
+
+            try:
+                if template_arg_modifier:
+                    tam = template_arg_modifier(template_args[arg-1])
+                    tem_string += encodeurl(tam)
+                else:
+                    tem_string += encodeurl(template_args[arg-1])
+            except:
+                print(f"[WARN] Template {template.filenum} has unsatisfied modified URL parameter")
+
+        # HTML text based on previous template arg
+        elif line.startswith("%%"):
+            if arg == 0:
+                print(f"[WARN] Template {template.filenum} has modified HTML as first parameter")
+                continue
+
+            try:
+                if template_arg_modifier:
+                    tam = template_arg_modifier(template_args[arg-1])
+                    tem_string += encodeurl(tam)
+                else:
+                    tem_string += encodehtml(template_args[arg-1])
+            except:
+                print(f"[WARN] Template {template.filenum} has unsatisfied modified HTML parameter")
+
+        # URL
+        elif line.startswith("%="):
+            try:
+                tem_string += encodeurl(template_args[arg])
+            except:
+                print(f"[WARN] Template {template.filenum} has unsatisfied URL parameter")
+            finally:
+                arg += 1
+
+        # HTML text
+        elif line.startswith("%"):
             try:
                 tem_string += encodehtml(template_args[arg])
             except:
-                print(f"[WARN] Template {template.filenum} has unsatisfied argument")
+                print(f"[WARN] Template {template.filenum} has unsatisfied HTML argument")
             finally:
                 arg += 1
 
@@ -90,6 +143,7 @@ def readtemplate(template, template_args):
             tem_string += line
 
     return tem_string
+
 
 # Reads the .zwc file and creates the HTML for the text
 def generatecontent(zwc_file, templates):
@@ -116,7 +170,7 @@ def generatecontent(zwc_file, templates):
                 if MODES[mode].stripws:
                     line = linestrip
                 line = line[len(marker):]
-                contents += readtemplate(templates[info.filenum], line.split(maxsplit=info.dpl))
+                contents += readtemplate(templates[info.filenum], line.split(maxsplit=info.dpl), info.template_arg_modifier)
                 if info.neednl:
                     contents += "\n"
 
@@ -140,6 +194,7 @@ def generatecontent(zwc_file, templates):
     contents += "</div>\n"
 
     return contents
+
 
 # Generates the HTML for the entire page (except that determined by the .zwc file)
 def generatepage(file, templates):
@@ -211,6 +266,7 @@ def generateallpages(in_files):
                 exit(-1)
 
     return index_list, total_pages
+
 
 if __name__ == "__main__":
 
