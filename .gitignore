@@ -1,2 +1,9 @@
+# Generated files
 genpages/*
+
+# Editor(s)
 .vscode/*
+\#*
+.emacs.desktop
+.emacs.desktop.lock
+
