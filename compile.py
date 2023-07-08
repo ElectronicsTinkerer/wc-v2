@@ -47,7 +47,7 @@ def sp_image_linker(link):
     delim_index = link.rfind("/")
     return f"{link[:delim_index+1]}s_{link[delim_index+1:]}"
 
-SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs newline after template
+SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs newline after template, modified parameter function
     "```"  : SP(50, "",  0, "code", False, None),   # CODE BLOCK TOGGLE
     "# "   : SP(51, "",  0, "none", True,  None),   # HEADING 1
     "## "  : SP(52, "",  0, "none", True,  None),   # HEADING 2
