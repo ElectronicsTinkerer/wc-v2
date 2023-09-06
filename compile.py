@@ -193,11 +193,11 @@ def generatecontent(zwc_file, templates):
 
             l2e = line
             if MODES[mode].stripws and linestrip != "":
-                l2e = linestrip
+                l2e = linestrip + "\n"
 
             # Only escape HTML characters if in a mode that requires escape sequences
             if MODES[mode].do_escape:
-                contents += encodehtml(l2e) + "\n"
+                contents += encodehtml(l2e)
             else:
                 contents += l2e
 
