@@ -1,7 +1,10 @@
 
 import os
+import sys
+import getopt
 import urllib.parse
 import re
+import tomllib
 
 
 class SP:  # [S]yntax[P]roperties
@@ -43,7 +46,8 @@ TEMPLATEDIR = "templates"
 INDIR  = "rawpages"
 OUTDIR = "genpages"
 INDEXZWC = "index.zwc"
-INDEXIGNORE = ".indexignore"
+INDEXINFO = "indexinfo.toml"
+ZWCFILEEXT = ".zwc"
 
 def sp_image_linker(link):
     delim_index = link.rfind("/")
@@ -260,18 +264,18 @@ def generatepage(file, templates):
     return page_string, page_title
 
 
-def generateallpages(in_files):
+def generateallpages(in_files, indir, outdir):
     index_list = []
     total_pages = 0
 
     for filename in in_files:
         filebase, fileext = os.path.splitext(filename)
-        file = os.path.join(INDIR, filebase + fileext)
+        file = os.path.join(indir, filebase + fileext)
         # If file is a regular file (not a folder), generate a page with it
-        if os.path.isfile(file) and fileext == ".zwc":
+        if os.path.isfile(file) and fileext == ZWCFILEEXT:
             file_contents, file_title = generatepage(file, templates)
             index_list.append(ZWCFile(filebase, fileext, file_title))
-            file_to_write = os.path.join(OUTDIR, filebase + ".html")
+            file_to_write = os.path.join(outdir, filebase + ".html")
             try:
                 with open(file_to_write, "w") as genfile:
                     genfile.write(file_contents)
@@ -285,18 +289,41 @@ def generateallpages(in_files):
 
 if __name__ == "__main__":
 
+    argv = sys.argv[1:]
+    
+    indir = INDIR
+    outdir = OUTDIR
+    templatedir = TEMPLATEDIR
+
     try:
-        os.mkdir(OUTDIR)
+        opts, args = getopt.getopt(argv, "i:o:t:", ["in-dir=", "out-dir=", "template-dir="])
+    except getopt.GetoptError:
+        print("[ERRR] Unknown option!")
+        exit (-1)
+    
+    for opt, arg in opts:
+        if opt in ['-i', "--in-dir"]:
+            indir = arg
+        elif opt in ['-o', "--out-dir"]:
+            outdir = arg
+        elif opt in ['-t', "--template-dir"]:
+            templatedir = arg
+        else:
+            print("[SPCL] Somehow an unknown arg got past the arg parser")
+
+    try:
+        os.mkdir(outdir)
         print("[INFO] Created output directory")
     except FileExistsError:
         print("[INFO] Output directory exists")
         
 
+    # Template loading
     templates = {}
-    template_listing = os.listdir(TEMPLATEDIR)
+    template_listing = os.listdir(templatedir)
     template_listing.sort()
     for filename in template_listing:
-        file = os.path.join(TEMPLATEDIR, filename)
+        file = os.path.join(templatedir, filename)
 
         # Extract the template number from the file name
         match = re.search(r"^0*([0-9]+)_", filename)
@@ -315,33 +342,54 @@ if __name__ == "__main__":
                 } )
 
     # Remove the index file
-    index_file = os.path.join(INDIR, INDEXZWC)
+    index_file = os.path.join(indir, INDEXZWC)
     try:
         os.remove(index_file)
     except:
         print(f"[INFO] No previous {index_file} file detected")
     
-    index_list, total_pages = generateallpages(os.listdir(INDIR))
+    index_list, total_pages = generateallpages(os.listdir(indir), indir, outdir)
 
     index_list.sort()
 
-    indexignore = [];
+    indexinfo = {}
+    index_title = ""
+    index_desc = ""
+    index_ignore = []
     try:
-        with open(os.path.join(INDIR, INDEXIGNORE)) as indexignore_file:
-            indexignore = indexignore_file.read().split('\n');
-    except:
-        print("[WARN] Unable to open index ignore file")
+        with open(os.path.join(indir, INDEXINFO), "rb") as indexinfo_file:
+            indexinfo = tomllib.load(indexinfo_file)
+            index_title = indexinfo['index']['title'].strip()
+            index_desc = indexinfo['index']['desc'].strip()
+            index_ignore = indexinfo['hidden']['pages']
+    except FileNotFoundError:
+        print("[WARN] Unable to open index info file")
+    except tomllib.TOMLDecodeError as e:
+        print(f"[ERRR] Errors encountered while parsing {INDEXINFO}")
+        print(e)
+        exit(-1)
 
     try:
         with open(index_file, "w") as indexfile:
-            indexfile.write("# Index\n")
-            for element in index_list:
-                if element.filebase not in indexignore:
-                    indexfile.write(f"=> {element.filebase}.html {element.title}\n")
-    except:
-        print("[WARN] Unable to generate index file")
+            # If an index title is specified, use that instead
+            if (len(index_title) == 0):
+                indexfile.write("# Index\n")
+            else:
+                indexfile.write(f"# {index_title}\n")
+                
+            # If an index description is specified, insert it
+            if (len(index_desc) > 0):
+                indexfile.write(f"{index_desc}\n\n")
 
-    index_list, pages = generateallpages([INDEXZWC])
+            # Now list all the files for this index listing level
+            for element in index_list:
+                if element.filebase not in index_ignore:
+                    indexfile.write(f"=> {element.filebase}.html {element.title}\n")
+    except Exception as e:
+        print("[WARN] Unable to generate index file")
+        print(e)
+
+    index_list, pages = generateallpages([INDEXZWC], indir, outdir)
     total_pages += pages
 
     print(f"[INFO] DONE! Total pages {total_pages}")

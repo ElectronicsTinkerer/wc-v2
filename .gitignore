@@ -1,10 +1,11 @@
 # Generated files
 genpages/*
-rawpages/index.zwc
+index.zwc
 
 # Editor(s)
 .vscode/*
 \#*
 .emacs.desktop
 .emacs.desktop.lock
+*~
 
