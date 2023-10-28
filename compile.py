@@ -49,6 +49,12 @@ INDEXZWC = "index.zwc"
 INDEXINFO = "indexinfo.toml"
 ZWCFILEEXT = ".zwc"
 
+# ################ GLOBALS ################
+indir_base = INDIR
+outdir_base = OUTDIR
+templates = {}
+
+
 def sp_image_linker(link):
     delim_index = link.rfind("/")
     return f"{link[:delim_index+1]}s_{link[delim_index+1:]}"
@@ -283,64 +289,17 @@ def generateallpages(in_files, indir, outdir):
             except:
                 print("[ERROR] Unable to write to " + file_to_write)
                 exit(-1)
+        elif os.path.isdir(file):
+            sub_outdir = file.replace(indir_base, outdir_base, 1)
+            index_title, pages_count = process_dir_recursive(file, sub_outdir)
+            total_pages += pages_count
+            index_list.append(ZWCFile(os.path.join(filebase, "index"), "", index_title))
 
     return index_list, total_pages
 
 
-if __name__ == "__main__":
-
-    argv = sys.argv[1:]
+def process_dir_recursive(indir, outdir, is_root_dir=False):
     
-    indir = INDIR
-    outdir = OUTDIR
-    templatedir = TEMPLATEDIR
-
-    try:
-        opts, args = getopt.getopt(argv, "i:o:t:", ["in-dir=", "out-dir=", "template-dir="])
-    except getopt.GetoptError:
-        print("[ERRR] Unknown option!")
-        exit (-1)
-    
-    for opt, arg in opts:
-        if opt in ['-i', "--in-dir"]:
-            indir = arg
-        elif opt in ['-o', "--out-dir"]:
-            outdir = arg
-        elif opt in ['-t', "--template-dir"]:
-            templatedir = arg
-        else:
-            print("[SPCL] Somehow an unknown arg got past the arg parser")
-
-    try:
-        os.mkdir(outdir)
-        print("[INFO] Created output directory")
-    except FileExistsError:
-        print("[INFO] Output directory exists")
-        
-
-    # Template loading
-    templates = {}
-    template_listing = os.listdir(templatedir)
-    template_listing.sort()
-    for filename in template_listing:
-        file = os.path.join(templatedir, filename)
-
-        # Extract the template number from the file name
-        match = re.search(r"^0*([0-9]+)_", filename)
-        if not match or not match.group(1):
-            print(f"[WARN] Ignoring template {filename} due to invalid filename")
-            continue
-
-        filenum = int(match.group(1), base=10)
-
-        # If file is a regular file (not a folder), generate a page with it
-        filebase, fileextention = os.path.splitext(filename)
-        if os.path.isfile(file) and fileextention == ".html":
-            with open(file, "r") as f:
-                templates.update( {
-                    filenum : Template(filename, filenum, f.read())
-                } )
-
     # Remove the index file
     index_file = os.path.join(indir, INDEXZWC)
     try:
@@ -348,6 +307,13 @@ if __name__ == "__main__":
     except:
         print(f"[INFO] No previous {index_file} file detected")
     
+    try:
+        os.mkdir(outdir)
+        print("[INFO] Created output directory")
+    except FileExistsError:
+        print("[INFO] Output directory exists")
+        
+
     index_list, total_pages = generateallpages(os.listdir(indir), indir, outdir)
 
     index_list.sort()
@@ -365,10 +331,14 @@ if __name__ == "__main__":
     except FileNotFoundError:
         print("[WARN] Unable to open index info file")
     except tomllib.TOMLDecodeError as e:
-        print(f"[ERRR] Errors encountered while parsing {INDEXINFO}")
+        print(f"[ERROR] Errors encountered while parsing {INDEXINFO}")
         print(e)
         exit(-1)
 
+    if not is_root_dir and len(index_title) == 0:
+        print("[ERROR] Sub directory index missing title!")
+        exit(-1)
+        
     try:
         with open(index_file, "w") as indexfile:
             # If an index title is specified, use that instead
@@ -391,5 +361,53 @@ if __name__ == "__main__":
 
     index_list, pages = generateallpages([INDEXZWC], indir, outdir)
     total_pages += pages
+    return index_title, total_pages
 
+
+if __name__ == "__main__":
+
+    argv = sys.argv[1:]
+    
+    templatedir = TEMPLATEDIR
+
+    try:
+        opts, args = getopt.getopt(argv, "i:o:t:", ["in-dir=", "out-dir=", "template-dir="])
+    except getopt.GetoptError:
+        print("[ERROR] Unknown option!")
+        exit (-1)
+    
+    for opt, arg in opts:
+        if opt in ['-i', "--in-dir"]:
+            indir_base = arg
+        elif opt in ['-o', "--out-dir"]:
+            outdir_base = arg
+        elif opt in ['-t', "--template-dir"]:
+            templatedir = arg
+        else:
+            print("[SPCL] Somehow an unknown arg got past the arg parser")
+
+    # Template loading
+    template_listing = os.listdir(templatedir)
+    template_listing.sort()
+    for filename in template_listing:
+        file = os.path.join(templatedir, filename)
+
+        # Extract the template number from the file name
+        match = re.search(r"^0*([0-9]+)_", filename)
+        if not match or not match.group(1):
+            print(f"[WARN] Ignoring template {filename} due to invalid filename")
+            continue
+
+        filenum = int(match.group(1), base=10)
+
+        # If file is a regular file (not a folder), generate a page with it
+        filebase, fileextention = os.path.splitext(filename)
+        if os.path.isfile(file) and fileextention == ".html":
+            with open(file, "r") as f:
+                templates.update( {
+                    filenum : Template(filename, filenum, f.read())
+                } )
+
+    total_pages = process_dir_recursive(indir_base, outdir_base, is_root_dir=True)
+                
     print(f"[INFO] DONE! Total pages {total_pages}")
