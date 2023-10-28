@@ -59,6 +59,8 @@ def sp_image_linker(link):
     delim_index = link.rfind("/")
     return f"{link[:delim_index+1]}s_{link[delim_index+1:]}"
 
+# NOTE: there are a few places in the index generation which hardcodes these
+# tokens. If these are changed, be sure to change them in the index.zec generation!
 SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs newline after template, modified parameter function
     "```"  : SP(500, "",  0, "code", False, None),   # CODE BLOCK TOGGLE
     "# "   : SP(501, "",  0, "none", True,  None),   # HEADING 1
@@ -309,9 +311,9 @@ def process_dir_recursive(indir, outdir, is_root_dir=False):
     
     try:
         os.mkdir(outdir)
-        print("[INFO] Created output directory")
+        print(f"[INFO] Created output directory '{outdir}'")
     except FileExistsError:
-        print("[INFO] Output directory exists")
+        print(f"[INFO] Output directory exists ({outdir})")
         
 
     index_list, total_pages = generateallpages(os.listdir(indir), indir, outdir)
@@ -341,12 +343,21 @@ def process_dir_recursive(indir, outdir, is_root_dir=False):
         
     try:
         with open(index_file, "w") as indexfile:
+            # If this is a subdirectory, put links to the parent directories
+            if not is_root_dir:
+                pd = indir.replace(indir_base, "", 1)
+                sp = os.path.split(pd)
+                if sp[0] != '' and sp[1] != '':
+                    indexfile.write(f"=> ../index.html Up to {sp[0]}")
+
+                indexfile.write("\n\n")
+
             # If an index title is specified, use that instead
             if (len(index_title) == 0):
                 indexfile.write("# Index\n")
             else:
                 indexfile.write(f"# {index_title}\n")
-                
+
             # If an index description is specified, insert it
             if (len(index_desc) > 0):
                 indexfile.write(f"{index_desc}\n\n")
