@@ -227,7 +227,7 @@ def generatepage(file, templates):
 
     page_string = ""
 
-    page_title = file
+    page_title = file.replace(indir_base, "", 1)
 
     zwc = open(file, "r")
     for line in zwc.readlines():
@@ -349,8 +349,7 @@ def process_dir_recursive(indir, outdir, is_root_dir=False):
                 sp = os.path.split(pd)
                 if sp[0] != '' and sp[1] != '':
                     indexfile.write(f"=> ../index.html Up to {sp[0]}")
-
-                indexfile.write("\n\n")
+                    indexfile.write("\n\n")
 
             # If an index title is specified, use that instead
             if (len(index_title) == 0):
