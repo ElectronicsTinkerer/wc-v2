@@ -71,7 +71,8 @@ SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs
     "> "   : SP(506, "",  0, "none", False, None),   # BLOCKQUOTE
     "! "   : SP(507, " ", 1, "none", True,  None),   # IMAGE
     "!! "  : SP(508, " ", 1, "none", True,  sp_image_linker),     # IMAGE (with scaled link - full size is linked)
-    "<@>"  : SP(509, "",  0, "html", False, None)   # HTML BLOCK TOGGLE
+    "<@>"  : SP(509, "",  0, "html", False, None),   # HTML BLOCK TOGGLE
+    "$"    : SP(510, "",  0, "none", False, None)    # CENTERED TEXT
 }
 MODES = { #       BEGIN      END         STRIP  RETAIN ESCAPE
     "none" : MODE("",        "",         True,  False, True),
@@ -85,7 +86,8 @@ MODES = { #       BEGIN      END         STRIP  RETAIN ESCAPE
 # Enocdes string to use HTML instead of raw characters
 # Param: string: the string to be HTML encoded (using the HTML entities)
 def encodehtml(string):
-        return (string.replace("&", "&amp;")
+        return (string
+                .replace("&", "&amp;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;")
                 .replace("<", "&lt;")
