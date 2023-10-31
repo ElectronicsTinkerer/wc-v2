@@ -1,0 +1,12 @@
+
+# This information is displayed on the
+# index page for this directory
+[index]
+title = "Home"
+desc = "Welcome to my place on the web!"
+
+# These zwc files are ignored and not
+# added to the index listing
+[hidden]
+pages = [ "about" ]
+
