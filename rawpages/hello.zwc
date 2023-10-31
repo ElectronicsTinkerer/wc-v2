@@ -19,6 +19,22 @@ int main() {
 }
 ```
 
+
+## Compiler File Structure
+
+```
+$ tree
+.
+├── compile.py
+├── genpages
+│   └── index.html [Auto Generated]
+├── rawpages
+│   ├── index.zwc [Auto Generated]
+│   └── indexinfo.toml [User Created]
+└── templates
+
+```
+
 > A block quote (very interesting he said...)
 
 ! https://placekitten.com/200/300 An image with alt text
@@ -26,7 +42,7 @@ int main() {
 <@>
 <!-- Note that this is not recommended and is only provided
      for use with very simple HTML elements -->
-<center style="color: red">HTML TEXT!!!!</center>
+<p style="color: red; background-color: blue;">HTML TEXT!!!!</p>
 <@>
 
 A centered block:
