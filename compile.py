@@ -64,14 +64,14 @@ def sp_image_linker(link):
 # tokens. If these are changed, be sure to change them in the index.zec generation!
 SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs newline after template, modified parameter function
     "```"  : SP(500, "",  0, "code", False, None),   # CODE BLOCK TOGGLE
-    "# "   : SP(501, "",  0, "none", True,  None),   # HEADING 1
-    "## "  : SP(502, "",  0, "none", True,  None),   # HEADING 2
-    "### " : SP(503, "",  0, "none", True,  None),   # HEADING 3
+    "#"    : SP(501, "",  0, "none", True,  None),   # HEADING 1
+    "##"   : SP(502, "",  0, "none", True,  None),   # HEADING 2
+    "###"  : SP(503, "",  0, "none", True,  None),   # HEADING 3
     "=>"   : SP(504, " ", 1, "none", True,  None),   # HYPERLINK
-    "* "   : SP(505, "",  0, "list", False, None),   # LIST ELEMENT
-    "> "   : SP(506, "",  0, "none", False, None),   # BLOCKQUOTE
-    "! "   : SP(507, " ", 1, "none", True,  None),   # IMAGE
-    "!! "  : SP(508, " ", 1, "none", True,  sp_image_linker),     # IMAGE (with scaled link - full size is linked)
+    "*"    : SP(505, "",  0, "list", False, None),   # LIST ELEMENT
+    ">"    : SP(506, "",  0, "none", False, None),   # BLOCKQUOTE
+    "!"    : SP(507, " ", 1, "none", True,  None),   # IMAGE
+    "!!"   : SP(508, " ", 1, "none", True,  sp_image_linker),     # IMAGE (with scaled link - full size is linked)
     "<@>"  : SP(509, "",  0, "html", False, None),   # HTML BLOCK TOGGLE
     "$"    : SP(510, "",  0, "none", False, None)    # CENTERED TEXT
 }
@@ -169,43 +169,69 @@ def generatecontent(zwc_file, templates):
 
     mode = "none"
 
+    # Start content container
     contents = '\n<div id="content" class="container">'
 
     for line in zwc_file.readlines():
         linestrip = line
         linestrip.strip()
         linestrip = linestrip.replace("\n", "") # This keeps leading whitespace!
+        marker = ""
+        if len(linestrip) > 0:
+            fields = linestrip.split(maxsplit=1)
+            marker = fields[0]
         marked = False
-        for marker, info in SYNTXLUT.items():
-            if linestrip.startswith(marker):
-                marked = True
-                elif_extension = True
-                if mode != info.mode and not MODES[mode].retain:
-                    contents += MODES[mode].end
-                    mode = info.mode
-                    contents += MODES[mode].begin
-                    elif_extension = False
 
-                if MODES[mode].stripws:
-                    line = linestrip
-                line = line[len(marker):]
-                try:
-                    contents += readtemplate(templates[info.filenum], line.split(maxsplit=info.dpl), info.template_arg_modifier)
-                except KeyError:
-                    print(f"[WARN] Encountered template id {info.filenum} with no associated template file")
-                if info.neednl:
-                    contents += "\n"
+        # Check if this line starts with a marker
+        sp = None
+        try:
+            sp = SYNTXLUT[marker]
+            marked = True
+        except KeyError:
+            pass
 
-                if elif_extension and mode == info.mode and MODES[mode].retain:
+        # Line contains a marker, set up mode if it changes the mode state
+        if marked and (not MODES[mode].retain or mode == sp.mode):
+            if sp.mode != "none":
+                # If the mode is the same
+                if sp.mode == mode:
+                    # and it's set to be "sticky" with the retain
+                    # flag, then disable the mode since we're
+                    # already in it
+                    if MODES[sp.mode].retain:
+                        contents += MODES[mode].end
+                        mode = "none"
+                # Different mode => end the current one and set
+                # up the new one
+                else:
                     contents += MODES[mode].end
-                    mode = "none"
+                    mode = sp.mode
                     contents += MODES[mode].begin
-        
-        if not marked:
+
+            # Handle whitespace strip if necessary
+            if MODES[mode].stripws:
+                line = linestrip
+            line = line[len(marker):]
+
+            # Parse corresponding template and insert its contents
+            try:
+                contents += readtemplate(templates[sp.filenum], line.split(maxsplit=sp.dpl), sp.template_arg_modifier)
+            except KeyError:
+                print(f"[WARN] Encountered template id {sp.filenum} with no associated template file")
+
+            # Some templates need a trailing newline for formatting purposes
+            if sp.neednl:
+                contents += "\n"
+
+        # Line does not contain a marker
+        else:
+            # If the mode does not need to be retained
+            # between lines, reset the mode
             if not MODES[mode].retain:
                 contents += MODES[mode].end
                 mode = "none"
 
+            # Handle modes which require whitespace strip
             l2e = line
             if MODES[mode].stripws and linestrip != "":
                 l2e = linestrip + "\n"
@@ -216,9 +242,11 @@ def generatecontent(zwc_file, templates):
             else:
                 contents += l2e
 
+
     if mode != "none":
         contents += MODES[mode].end
         
+    # Close content container
     contents += "</div>\n"
 
     return contents
@@ -271,6 +299,8 @@ def generatepage(file, templates):
             page_string += temval.contents
         else:
             print(f"[WARN] Filetype number {temnum} is unused")
+
+    zwc.close()
 
     return page_string, page_title
 
