@@ -173,8 +173,7 @@ def generatecontent(zwc_file, templates):
     contents = '\n<div id="content" class="container">'
 
     for line in zwc_file.readlines():
-        linestrip = line
-        linestrip.strip()
+        linestrip = line.strip()
         linestrip = linestrip.replace("\n", "") # This keeps leading whitespace!
         marker = ""
         if len(linestrip) > 0:
