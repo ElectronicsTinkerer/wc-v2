@@ -7,6 +7,12 @@ import urllib.parse
 import re
 import tomllib
 
+# Formatters for code
+from pygments import highlight
+from pygments.lexers import get_lexer_by_name
+from pygments.formatters import HtmlFormatter
+from pygments.util import ClassNotFound
+
 
 class SP:  # [S]yntax[P]roperties
     def __init__(self, filenum, delimiter, del_per_line, mode, need_newline, template_arg_modifier):
@@ -18,12 +24,13 @@ class SP:  # [S]yntax[P]roperties
         self.template_arg_modifier = template_arg_modifier
 
 class MODE:
-    def __init__(self, begin, end, strip_whitespace, retain, do_escape):
+    def __init__(self, begin, end, strip_whitespace, retain, do_escape, block_mode_processor):
         self.begin = begin
         self.end = end
         self.stripws = strip_whitespace
         self.retain = retain
         self.do_escape = do_escape
+        self.block_mode_processor = block_mode_processor
 
 class Template:
     def __init__(self, filename, filenum, contents):
@@ -54,11 +61,28 @@ ZWCFILEEXT = ".zwc"
 indir_base = INDIR
 outdir_base = OUTDIR
 templates = {}
-
+FORMATTER = HtmlFormatter(linenos=False, cssclass="source")
 
 def sp_image_linker(link):
     delim_index = link.rfind("/")
     return f"{link[:delim_index+1]}s_{link[delim_index+1:]}"
+
+def block_processor_code(c, args, mode):
+    lang = ""
+    pre = "<div class=\"source\"><pre>" + c + "</pre></div>"
+    try:
+        lang = args[0]
+        if lang == 'none':
+            return pre
+        lexer = get_lexer_by_name(lang, stripal=True)
+        return highlight(c, lexer, FORMATTER)
+    except IndexError:
+        print(f"[WARN] Missing argument for mode '{mode}'")
+        return pre
+    except ClassNotFound:
+        print(f"[WARN] Unknown language '{lang}' use 'none' for no highlighting")
+        return pre
+
 
 # NOTE: there are a few places in the index generation which hardcodes these
 # tokens. If these are changed, be sure to change them in the index.zec generation!
@@ -75,11 +99,11 @@ SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs
     "<@>"  : SP(509, "",  0, "html", False, None),   # HTML BLOCK TOGGLE
     "$"    : SP(510, "",  0, "none", False, None)    # CENTERED TEXT
 }
-MODES = { #       BEGIN      END         STRIP  RETAIN ESCAPE
-    "none" : MODE("",        "",         True,  False, True),
-    "code" : MODE("<pre>\n", "</pre>\n", False, True,  True),
-    "html" : MODE("",        "",         True,  True,  False),
-    "list" : MODE("<ul>",    "</ul>",    True,  False, True)
+MODES = { #       BEGIN      END         STRIP  RETAIN ESCAPE block_mode_processor
+    "none" : MODE("",        "",         True,  False, True,  None),
+    "code" : MODE("",        "",         False, True,  False, block_processor_code),
+    "html" : MODE("",        "",         True,  True,  False, None),
+    "list" : MODE("<ul>",    "</ul>",    True,  False, True,  None)
 }
 
 
@@ -172,7 +196,12 @@ def generatecontent(zwc_file, templates):
     # Start content container
     contents = '\n<div id="content" class="container">'
 
-    for line in zwc_file.readlines():
+    lines = zwc_file.readlines()
+    ii = 0
+    block = ""
+    while ii < len(lines):
+        line = lines[ii]
+        ii += 1
         linestrip = line.strip()
         linestrip = linestrip.replace("\n", "") # This keeps leading whitespace!
         marker = ""
@@ -199,6 +228,14 @@ def generatecontent(zwc_file, templates):
                     # already in it
                     if MODES[sp.mode].retain:
                         contents += MODES[mode].end
+                        
+                        # For modes that need to be processed as a single block, 
+                        # do the processing here:
+                        if MODES[mode].block_mode_processor != None:
+                            contents += MODES[mode].block_mode_processor(block, mode_args, mode)
+                        
+                        mode_args = []
+                        block = ""
                         mode = "none"
                 # Different mode => end the current one and set
                 # up the new one
@@ -222,6 +259,10 @@ def generatecontent(zwc_file, templates):
             if sp.neednl:
                 contents += "\n"
 
+            # Set up arguments for block modes
+            if MODES[mode].block_mode_processor != None:
+                mode_args = line.split()
+
         # Line does not contain a marker
         else:
             # If the mode does not need to be retained
@@ -237,9 +278,13 @@ def generatecontent(zwc_file, templates):
 
             # Only escape HTML characters if in a mode that requires escape sequences
             if MODES[mode].do_escape:
-                contents += encodehtml(l2e)
-            else:
+                l2e = encodehtml(l2e)
+            
+            # Handle blocks
+            if MODES[mode].block_mode_processor == None:
                 contents += l2e
+            else:
+                block += l2e
 
 
     if mode != "none":
