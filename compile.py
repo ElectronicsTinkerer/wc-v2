@@ -92,6 +92,7 @@ SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs
     "##"   : SP(502, "",  0, "none", True,  None),   # HEADING 2
     "###"  : SP(503, "",  0, "none", True,  None),   # HEADING 3
     "=>"   : SP(504, " ", 1, "none", True,  None),   # HYPERLINK
+    "=>>"  : SP(512, " ", 1, "none", True,  None),   # HYPERLINK - OFFSITE
     "*"    : SP(505, "",  0, "list", False, None),   # LIST ELEMENT
     ">"    : SP(506, "",  0, "none", False, None),   # BLOCKQUOTE
     "!"    : SP(507, " ", 1, "none", True,  None),   # IMAGE
