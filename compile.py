@@ -97,7 +97,8 @@ SYNTXLUT = { # Filetype number, delimiter, delimiters per line, mode type, needs
     "!"    : SP(507, " ", 1, "none", True,  None),   # IMAGE
     "!!"   : SP(508, " ", 1, "none", True,  sp_image_linker),     # IMAGE (with scaled link - full size is linked)
     "<@>"  : SP(509, "",  0, "html", False, None),   # HTML BLOCK TOGGLE
-    "$"    : SP(510, "",  0, "none", False, None)    # CENTERED TEXT
+    "$"    : SP(510, "",  0, "none", False, None),   # CENTERED TEXT
+    "!a"   : SP(511, " ", 2, "none", True,  None)    # AUDIO PLAYER
 }
 MODES = { #       BEGIN      END         STRIP  RETAIN ESCAPE block_mode_processor
     "none" : MODE("",        "",         True,  False, True,  None),
@@ -491,8 +492,15 @@ if __name__ == "__main__":
         filebase, fileextention = os.path.splitext(filename)
         if os.path.isfile(file) and fileextention == ".html":
             with open(file, "r") as f:
+                # Concatenate lines which do not start with a comment
+                template_str = ""
+                for ll in f.readlines():
+                    if not ll.startswith('#'):
+                        template_str += ll
+                
+                # Add template string to available templates
                 templates.update( {
-                    filenum : Template(filename, filenum, f.read())
+                    filenum : Template(filename, filenum, template_str)
                 } )
 
     total_pages = process_dir_recursive(indir_base, outdir_base, is_root_dir=True)
